@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: urlshort
+type: Opaque
+stringData:
+  POSTGRES_USER: urlshort
+  POSTGRES_PASSWORD: urlshort
+  POSTGRES_DB: urlshort
+  DATABASE_URL: postgres://urlshort:urlshort@postgres:5432/urlshort
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: urlshort
+data:
+  REDIS_URL: redis://redis:6379
+  SHORTENER_URL: http://shortener:3001
+  ANALYTICS_URL: http://analytics:3003

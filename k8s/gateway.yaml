@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: urlshort
+  labels: { app: gateway }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: gateway }
+  template:
+    metadata:
+      labels: { app: gateway }
+    spec:
+      containers:
+        - name: gateway
+          image: urlshort/gateway:1.0
+          imagePullPolicy: IfNotPresent
+          # Keep serving for a few seconds after deletion starts, so the pod is removed from the
+          # Service endpoints before it stops accepting connections (zero-downtime scale-in/updates).
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          ports:
+            - containerPort: 80
+          env:
+            # nginx does not use the pod's DNS search path, so use fully-qualified names.
+            - name: DNS_RESOLVER
+              value: kube-dns.kube-system.svc.cluster.local
+            - name: SHORTENER_HOST
+              value: shortener.urlshort.svc.cluster.local
+            - name: REDIRECT_HOST
+              value: redirect.urlshort.svc.cluster.local
+            - name: ANALYTICS_HOST
+              value: analytics.urlshort.svc.cluster.local
+          readinessProbe:
+            httpGet: { path: /healthz, port: 80 }
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 500m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: urlshort
+spec:
+  # LoadBalancer: Docker Desktop publishes it on localhost:30080.
+  # The fixed nodePort also allows access via <node-ip>:30080 (e.g. `minikube service`).
+  type: LoadBalancer
+  selector: { app: gateway }
+  ports:
+    - port: 30080
+      targetPort: 80
+      nodePort: 30080

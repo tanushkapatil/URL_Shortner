@@ -1,0 +1,56 @@
+# API gateway / load balancer. ${VARS} are filled in from environment variables when
+# the container starts (official nginx image feature), so the same image runs under
+# Docker Compose and Kubernetes.
+server {
+    listen 80;
+    server_name _;
+
+    # Re-resolve service names every 5s. With Docker Compose, a name like "redirect"
+    # resolves to the IPs of ALL its replicas and nginx round-robins between them, so
+    # `docker compose up --scale redirect=5` is picked up without restarting nginx.
+    # In Kubernetes the name resolves to the Service's ClusterIP, which balances across pods.
+    resolver ${DNS_RESOLVER} valid=5s ipv6=off;
+    resolver_timeout 2s;
+
+    set $shortener http://${SHORTENER_HOST}:3001;
+    set $redirect  http://${REDIRECT_HOST}:3002;
+    set $analytics http://${ANALYTICS_HOST}:3003;
+
+    root /usr/share/nginx/html;
+    add_header X-Gateway $hostname always;
+
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_connect_timeout 2s;
+    proxy_read_timeout 10s;
+
+    # If a replica is dead or failing, transparently retry the request on another one.
+    # (POSTs are not retried, since they are not idempotent.)
+    proxy_next_upstream error timeout http_502 http_503 http_504;
+    proxy_next_upstream_tries 3;
+
+    # --- web UI ---
+    location = / { try_files /index.html =404; }
+    location /static/ { try_files $uri =404; }
+    location = /healthz { access_log off; default_type text/plain; return 200 "ok\n"; }
+
+    # --- public APIs, routed to the owning service ---
+    location /api/shorten  { proxy_pass $shortener; }
+    location /api/urls     { proxy_pass $shortener; }
+    location /api/resolve/ { proxy_pass $redirect; }
+    location /api/stats    { proxy_pass $analytics; }
+
+    # --- per-service health, used by the UI's status pills ---
+    location = /health/shortener { proxy_pass $shortener/health; }
+    location = /health/redirect  { proxy_pass $redirect/health; }
+    location = /health/analytics { proxy_pass $analytics/health; }
+
+    # Service-to-service APIs are never exposed publicly.
+    location /internal/ { return 404; }
+
+    # --- short links: /<code> ---
+    location ~ "^/[A-Za-z0-9_-]{3,30}$" { proxy_pass $redirect; }
+}

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snip · Distributed URL Shortener</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/favicon.svg" alt="" width="28" height="28">
+      <div>
+        <strong>Snip</strong>
+        <span class="muted">Distributed URL shortener</span>
+      </div>
+    </div>
+    <div class="health" id="health" aria-live="polite">
+      <span class="pill" data-svc="shortener"><i></i>shortener</span>
+      <span class="pill" data-svc="redirect"><i></i>redirect</span>
+      <span class="pill" data-svc="analytics"><i></i>analytics</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="card hero">
+      <h1>Shorten a link</h1>
+      <form id="shorten-form" autocomplete="off">
+        <input id="url" type="url" required placeholder="https://example.com/some/very/long/link?with=params" aria-label="Long URL">
+        <div class="form-row">
+          <input id="alias" placeholder="Custom alias (optional)" pattern="[A-Za-z0-9_\-]{3,30}"
+                 title="3-30 letters, digits, - or _" aria-label="Custom alias">
+          <select id="expiry" aria-label="Expiry">
+            <option value="">Never expires</option>
+            <option value="2">Expires in 2 minutes</option>
+            <option value="60">Expires in 1 hour</option>
+            <option value="1440">Expires in 1 day</option>
+            <option value="10080">Expires in 7 days</option>
+          </select>
+          <button type="submit" id="shorten-btn">Shorten</button>
+        </div>
+      </form>
+      <div id="result" class="result" hidden></div>
+    </section>
+
+    <section class="card links">
+      <div class="card-head">
+        <h2>Recent links</h2>
+        <span id="links-note" class="note"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Short link</th><th>Destination</th><th class="num">Clicks</th><th>Expires</th><th></th></tr>
+          </thead>
+          <tbody id="links-body">
+            <tr><td colspan="5" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Link analytics</h2>
+        <span id="stats-code" class="note"></span>
+      </div>
+      <div id="stats" class="stats"><p class="empty">Select a link to see its clicks.</p></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Cluster</h2>
+        <span class="note">refreshes every 4s</span>
+      </div>
+      <div id="overview"><p class="empty">Loading…</p></div>
+    </section>
+
+    <section class="card wide">
+      <div class="card-head">
+        <h2>Load-balancing demo</h2>
+        <span class="note">fires requests through the gateway and records which replica answered</span>
+      </div>
+      <div class="form-row">
+        <select id="lb-code" aria-label="Link to resolve"></select>
+        <input id="lb-count" type="number" min="1" max="500" value="60" aria-label="Number of requests">
+        <button id="lb-run" type="button">Send requests</button>
+      </div>
+      <div id="lb-result" class="lb-result"></div>
+    </section>
+  </main>
+
+  <footer class="muted">
+    Gateway: <span id="gateway-id">–</span> · Services: shortener · redirect · analytics · Postgres · Redis
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

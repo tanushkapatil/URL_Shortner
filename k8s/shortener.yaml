@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shortener
+  namespace: urlshort
+  labels: { app: shortener }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: shortener }
+  template:
+    metadata:
+      labels: { app: shortener }
+    spec:
+      terminationGracePeriodSeconds: 15
+      containers:
+        - name: shortener
+          image: urlshort/shortener:1.0
+          imagePullPolicy: IfNotPresent
+          # Keep serving for a few seconds after deletion starts, so the pod is removed from the
+          # Service endpoints before it stops accepting connections (zero-downtime scale-in/updates).
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - configMapRef: { name: app-config }
+          env:
+            - name: PORT
+              value: "3001"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: postgres-secret, key: DATABASE_URL }
+          readinessProbe:
+            httpGet: { path: /health, port: 3001 }
+            periodSeconds: 5
+            failureThreshold: 2
+          # Gives the app up to 3 min to boot (e.g. while Postgres starts) before liveness checks begin.
+          startupProbe:
+            httpGet: { path: /live, port: 3001 }
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet: { path: /live, port: 3001 }
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shortener
+  namespace: urlshort
+spec:
+  selector: { app: shortener }
+  ports:
+    - port: 3001
+      targetPort: 3001

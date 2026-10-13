@@ -1,0 +1,86 @@
+name: url-shortener
+
+x-node-service: &node-service
+  restart: unless-stopped
+  environment: &node-env
+    DATABASE_URL: postgres://urlshort:urlshort@postgres:5432/urlshort
+    REDIS_URL: redis://redis:6379
+    SHORTENER_URL: http://shortener:3001
+    ANALYTICS_URL: http://analytics:3003
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: urlshort
+      POSTGRES_PASSWORD: urlshort
+      POSTGRES_DB: urlshort
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urlshort -d urlshort"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Writes: creates/lists/deletes links. Owns the `urls` table.
+  shortener:
+    <<: *node-service
+    build: ./services/shortener
+    image: urlshort/shortener:1.0
+    deploy:
+      replicas: 2
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  # Reads (hot path): resolves codes and redirects. Stateless -> scale freely.
+  redirect:
+    <<: *node-service
+    build: ./services/redirect
+    image: urlshort/redirect:1.0
+    deploy:
+      replicas: 3
+    depends_on:
+      redis: { condition: service_healthy }
+      shortener: { condition: service_started }
+
+  # Consumes click events from the Redis Stream. Owns the `clicks` table.
+  analytics:
+    <<: *node-service
+    build: ./services/analytics
+    image: urlshort/analytics:1.0
+    deploy:
+      replicas: 2
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  # Nginx API gateway + load balancer + static web UI. The only published port.
+  gateway:
+    build: ./gateway
+    image: urlshort/gateway:1.0
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - shortener
+      - redirect
+      - analytics
+
+volumes:
+  pgdata:
+  redisdata:
