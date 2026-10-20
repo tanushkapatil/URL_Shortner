@@ -35,15 +35,19 @@ spec:
                 secretKeyRef: { name: postgres-secret, key: DATABASE_URL }
           readinessProbe:
             httpGet: { path: /health, port: 3001 }
+            timeoutSeconds: 3
             periodSeconds: 5
             failureThreshold: 2
           # Gives the app up to 3 min to boot (e.g. while Postgres starts) before liveness checks begin.
           startupProbe:
             httpGet: { path: /live, port: 3001 }
+            timeoutSeconds: 3
             periodSeconds: 5
             failureThreshold: 36
           livenessProbe:
             httpGet: { path: /live, port: 3001 }
+            timeoutSeconds: 5
+            failureThreshold: 5
             periodSeconds: 10
           resources:
             requests: { cpu: 100m, memory: 64Mi }

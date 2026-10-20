@@ -197,6 +197,17 @@ kubectl rollout restart deployment redirect -n urlshort          # zero-downtime
 kubectl delete namespace urlshort                               # remove everything
 ```
 
+### Public access with a Cloudflare Tunnel (no account needed)
+
+Install `cloudflared` (`winget install Cloudflare.cloudflared`), then expose the gateway:
+```bash
+cloudflared tunnel --url http://localhost:30080
+```
+It prints a public `https://<random-words>.trycloudflare.com` address. The address only works while the
+laptop is awake and the command is running, and it changes every time the tunnel restarts. The gateway reads
+Cloudflare's `CF-Connecting-IP` and `X-Forwarded-Proto` headers, so rate limiting still applies per visitor
+and short links use `https://`. There is no login, so share the address only with people who need it.
+
 ---
 
 ## 5. Demo script (fault-tolerance scenarios)

@@ -1,6 +1,19 @@
 # API gateway / load balancer. ${VARS} are filled in from environment variables when
 # the container starts (official nginx image feature), so the same image runs under
 # Docker Compose and Kubernetes.
+
+# Behind a Cloudflare Tunnel every request arrives from the local cloudflared process, so
+# use the visitor IP and scheme that Cloudflare forwards (keeps per-visitor rate limiting
+# and https short links working). Without a tunnel these fall back to the direct values.
+map $http_cf_connecting_ip $client_ip {
+    ""      $remote_addr;
+    default $http_cf_connecting_ip;
+}
+map $http_x_forwarded_proto $client_proto {
+    ""      $scheme;
+    default $http_x_forwarded_proto;
+}
+
 server {
     listen 80;
     server_name _;
@@ -21,9 +34,9 @@ server {
 
     proxy_http_version 1.1;
     proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Real-IP $client_ip;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Proto $client_proto;
     proxy_connect_timeout 2s;
     proxy_read_timeout 10s;
 
